@@ -249,10 +249,11 @@ void fncfs()
 
     for (int i = 0; i < profNum; i++)
     {
+        printf("进程 %s 正在运行\n", prof[i].name);
         prof[i].need = 0;              // 一个接一个地执行完
         prof[i].status = FINISH;       // 该进程执行完毕
-        printf("\n进程 %s 已经执行完毕 ！\n", prof[i].name);
         showTable(1);
+        printf("进程 %s 已经执行完毕 ！\n", prof[i].name);
     }
 
     int order[N];
@@ -292,7 +293,6 @@ void rrobin()
         if (prof[cur].need == 0)
         {
             prof[cur].status = FINISH;
-            printf("进程 %s 已经执行完毕 ！\n", prof[cur].name);
         }
         else if (prof[cur].pri > 0)     // 运行后优先级提高
         {
@@ -300,7 +300,9 @@ void rrobin()
         }
         showTable(2);
 
-        if (prof[cur].status != FINISH)
+        if (prof[cur].status == FINISH)
+            printf("进程 %s 已经执行完毕 ！\n", prof[cur].name);
+        else
             queue[rear++] = cur;        // 未完成，重新排到队尾
     }
 
@@ -333,8 +335,8 @@ void priorSched()
         prof[sel].status = FINISH;
         order[k] = sel;
 
-        printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
         showTable(3);
+        printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
     }
 
     statistics(order, profNum);
@@ -366,8 +368,8 @@ void sjf()
         prof[sel].status = FINISH;
         order[k] = sel;
 
-        printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
         showTable(4);
+        printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
     }
 
     statistics(order, profNum);
@@ -415,9 +417,10 @@ void srtf()
         {
             p->status = FINISH;
             finished++;
-            printf("进程 %s 已经执行完毕 ！\n", p->name);
         }
         showTable(5);
+        if (p->status == FINISH)
+            printf("进程 %s 已经执行完毕 ！\n", p->name);
     }
 
     statistics(order, orderNum);

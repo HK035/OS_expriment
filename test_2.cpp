@@ -13,12 +13,12 @@
  *  说明：
  *      FCFS、RR、PRIOR、SJF 四个算法都以数组（PCB 数组）描述进程，
  *      只有 SRTF 用指针来描述进程（见 void srtf()）。
- *      优先级一项是指进程运行后的优先级：优先级数值越小级别越高，
- *      时间片轮转算法中进程每运行一次优先级提高一级（值减 1）。
  ***************************************************************/
 
+#include <iostream>
 #include <cstdio>
 #include <cstring>
+#include <climits>
 
 using namespace std;
 
@@ -49,7 +49,7 @@ int nowTime = 0;   // 当前时间（SRTF 用）
 int selectAlgorithm();          // 选择调度算法
 void inputProcess();            // 输入进程信息
 void reset();                   // 恢复进程信息
-void showTable();               // 显示进程状态表
+void showTable(int alg);        // 显示进程状态表
 void fncfs();                   // 1) 先来先服务
 void rrobin();                  // 2) 时间片轮转
 void priorSched();              // 3) 优先级调度
@@ -104,7 +104,7 @@ void printIntW(int value, int width)
 
 //-------------------------------------------------------------
 // 显示进程状态表
-void showTable()
+void showTable(int alg)
 {
     // 各列的显示宽度（汉字按 2 列）
     int wName = strWidth("进程名字");   // 8
@@ -178,16 +178,16 @@ int selectAlgorithm()
 void inputProcess()
 {
     printf("输入进程个数:\n");
-    for (;;)
+    scanf("%d", &profNum);
+    if (profNum <= 0 || profNum > N)
     {
-        if (scanf("%d", &profNum) != 1 || profNum <= 0 || profNum > N)
-            printf("进程个数应为 1 ~ %d，请重新输入:\n", N);
-        else
-            break;
+        printf("进程个数不合法，按 1 处理！\n");
+        profNum = 1;
     }
 
     printf("输入此进程时间片大小:\n");
-    if (scanf("%d", &timeSlice) != 1 || timeSlice <= 0)
+    scanf("%d", &timeSlice);
+    if (timeSlice <= 0)
         timeSlice = 1;
 
     for (int i = 0; i < profNum; i++)
@@ -198,7 +198,7 @@ void inputProcess()
             pcbs[i].time = 1;
         pcbs[i].need = pcbs[i].time;
         pcbs[i].status = RUN;
-        pcbs[i].arrive = 0; // 各进程均在时刻 0 到达（SRTF 中另行输入到达时间）
+        pcbs[i].arrive = i; // 按输入次序到达
     }
 
     printf("\n< 说明：在本程序所列进程信息中， 优先级一项是指进程运行后的优先级！！ >\n");
@@ -206,58 +206,38 @@ void inputProcess()
 
 //-------------------------------------------------------------
 // 显示进程执行次序
-//   order[] 为完整运行轨迹（每运行一个时间单位记录一次），
-//   显示时对同一进程的连续运行进行合并，使结果清晰易读。
 void showOrder(int order[], int n)
 {
     printf("进程按顺序运行依次为:\n");
     for (int i = 0; i < n; i++)
-    {
-        if (i > 0 && order[i] == order[i - 1]) // 与上一次是同一进程，合并显示
-            continue;
-        printf("%s ", pcbs[order[i]].name);
-    }
-    printf("\n");
+        printf("%s%s", pcbs[order[i]].name, (i == n - 1) ? "\n" : " ");
 }
 
 //-------------------------------------------------------------
 // 算法评价：计算平均等待时间和平均周转时间
-//   order[] 中记录的是进程的执行次序（每执行一个时间单位记录一次），
-//   某个进程的完成时刻 = 它最后一次被执行的时刻；
-//   周转时间 = 完成时刻 - 到达时刻，等待时间 = 周转时间 - 共需占用 CPU 时间。
+//   等待时间 = 周转时间 - 共需占用 CPU 时间
 void statistics(int order[], int n)
 {
     double sumWait = 0.0, sumTurn = 0.0;
     int finish[N];
 
-    // 累计各进程已经被执行的时间，最后一次累计即为其完成时刻
-    int count[N];
-    for (int i = 0; i < profNum; i++)
-        count[i] = 0;
-
+    // order[] 中记录的是进程的执行次序，据此确定完成时间
     for (int k = 0; k < n; k++)
     {
         int idx = order[k];
-        count[idx]++;
-        if (count[idx] == pcbs[idx].time) // 该进程本次执行完毕
-            finish[idx] = k + 1;          // 完成时刻
-    }
-
-    for (int i = 0; i < profNum; i++)
-        if (count[i] < pcbs[i].time)      // 兜底：仍有未记录完的进程
-            finish[i] = n;
-
-    for (int i = 0; i < profNum; i++)
-    {
-        sumTurn += finish[i] - pcbs[i].arrive;         // 周转时间
-        sumWait += finish[i] - pcbs[i].arrive - pcbs[i].time; // 等待时间
+        int done = 0;
+        for (int j = 0; j <= k; j++)     // 该进程结束前已运行的总 CPU 时间
+            done += pcbs[order[j]].time;
+        finish[idx] = done;              // 该进程的完成时刻（同时刻到达时按次序累加）
+        sumTurn += finish[idx];          // 周转时间 = 完成时间 - 到达时间（到达时间均为 0）
+        sumWait += finish[idx] - pcbs[idx].time;
     }
 
     showOrder(order, n);
     printf("平均等待时间是:\n");
-    printf("%f\n", sumWait / profNum);
+    printf("%f\n", sumWait / n);
     printf("平均周转时间是:\n");
-    printf("%f\n", sumTurn / profNum);
+    printf("%f\n", sumTurn / n);
 }
 
 //-------------------------------------------------------------
@@ -272,16 +252,14 @@ void fncfs()
         printf("进程 %s 正在运行\n", prof[i].name);
         prof[i].need = 0;              // 一个接一个地执行完
         prof[i].status = FINISH;       // 该进程执行完毕
-        showTable();
+        showTable(1);
         printf("进程 %s 已经执行完毕 ！\n", prof[i].name);
     }
 
-    int order[N * 40]; // 运行次序
-    int orderNum = 0;
+    int order[N];
     for (int i = 0; i < profNum; i++)
-        for (int t = 0; t < prof[i].time; t++) // 依次记录 time 次，便于统计算法评价
-            order[orderNum++] = i;
-    statistics(order, orderNum);
+        order[i] = i;
+    statistics(order, profNum);
 
     printf("所有进程都已经执行完毕 ！\n");
 }
@@ -309,9 +287,7 @@ void rrobin()
 
         int run = (prof[cur].need < timeSlice) ? prof[cur].need : timeSlice;
         prof[cur].need -= run;          // 占用一个时间片
-        order[orderNum++] = cur;        // 记录运行次序：依次记录 timeSlice 次
-        for (int t = 1; t < run; t++)
-            order[orderNum++] = cur;
+        order[orderNum++] = cur;
 
         printf("进程 %s 正在运行\n", prof[cur].name);
         if (prof[cur].need == 0)
@@ -322,7 +298,7 @@ void rrobin()
         {
             prof[cur].pri--;
         }
-        showTable();
+        showTable(2);
 
         if (prof[cur].status == FINISH)
             printf("进程 %s 已经执行完毕 ！\n", prof[cur].name);
@@ -342,8 +318,7 @@ void priorSched()
     printf("\n");
     reset();
 
-    int order[N * 40]; // 运行次序
-    int orderNum = 0;  // 已记录的运行时间单位数
+    int order[N];
     for (int k = 0; k < profNum; k++)
     {
         int sel = -1;
@@ -358,15 +333,13 @@ void priorSched()
         printf("进程 %s 正在运行\n", prof[sel].name);
         prof[sel].need = 0;
         prof[sel].status = FINISH;
-        order[orderNum++] = sel;
-        for (int t = 1; t < prof[sel].time; t++) // 依次记录 time 次，便于统计算法评价
-            order[orderNum++] = sel;
+        order[k] = sel;
 
-        showTable();
+        showTable(3);
         printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
     }
 
-    statistics(order, orderNum);
+    statistics(order, profNum);
 
     printf("所有进程都已经执行完毕 ！\n");
 }
@@ -378,8 +351,7 @@ void sjf()
     printf("\n");
     reset();
 
-    int order[N * 40]; // 运行次序
-    int orderNum = 0;
+    int order[N];
     for (int k = 0; k < profNum; k++)
     {
         int sel = -1;
@@ -394,15 +366,13 @@ void sjf()
         printf("进程 %s 正在运行\n", prof[sel].name);
         prof[sel].need = 0;
         prof[sel].status = FINISH;
-        order[orderNum++] = sel;
-        for (int t = 1; t < prof[sel].time; t++) // 依次记录 time 次，便于统计算法评价
-            order[orderNum++] = sel;
+        order[k] = sel;
 
-        showTable();
+        showTable(4);
         printf("进程 %s 已经执行完毕 ！\n", prof[sel].name);
     }
 
-    statistics(order, orderNum);
+    statistics(order, profNum);
 
     printf("所有进程都已经执行完毕 ！\n");
 }
@@ -416,7 +386,7 @@ void srtf()
     reset();
 
     PCB *p = NULL;                 // p 指向当前被选中的进程
-    int order[N * 40];             // 运行次序（每运行一个时间单位记录一次）
+    int order[N];
     int orderNum = 0;
     int finished = 0;
 
@@ -448,7 +418,7 @@ void srtf()
             p->status = FINISH;
             finished++;
         }
-        showTable();
+        showTable(5);
         if (p->status == FINISH)
             printf("进程 %s 已经执行完毕 ！\n", p->name);
     }
